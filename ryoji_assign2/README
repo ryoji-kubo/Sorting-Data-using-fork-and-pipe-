@@ -1,0 +1,40 @@
+myhie is an application process that sorts the data of taxpayers
+using divide-and-conquer by invoking various system calls and namely
+the use of fork() and pipes. Please refer to the assignment sheet for
+a detailed explanation of the program assignment.
+
+How to use:
+Connect to the NYUAD's Ubuntu server bled.abudhabi.nyu.edu via ssh.
+Enter the directory of ryoji_assign2 and invoke the makefile by 
+the "make" command.
+After the necessarily cpp files are compiled, now you can invoke the
+application by the command line.
+
+The program should be invoked in the following way:
+./myhie -i InputFile -k NumOfWorkers -r -a AttributeNumber -o Order -s OutputFile
+
+where ./myhie is the name of your (executable) program, InputFile the file name containing 
+the data records, NumOfWorkers is the number of sorters to be spawned, r is the flag that 
+instructs the program to have workers work on “random ranges” or 
+not-equally-sized batches of data-records, AttributeNumber is a valid numeric-id that 
+designates the field on which sorting is to be carried out, 
+Order is either ascending (a) or descending (d), and OutputFile is the file in 
+which the outcome of myhie could be saved. 
+There is no pre-determined order with which the above flags can be entered in the 
+command line.
+
+AttributeNumber can either take 0, 3, 4, or 5.
+Each corresponds to Resident-ID, number-of-dependents, income, and postal-code.
+
+If the application is not invoked correctly, it will exit and display that it has had
+an invalid input.
+
+The result of the sorting and the time statitics will be displayed on STDOUT as well as be
+written in the OutputFile.
+
+***=============POTENTIAL ERROR===============***
+There are some errors when receiving signals at the root node. When multiple signals are received simultaneously,
+the handling of one gets interrupted by the other. Thus, when the root node prints a signal counter less than the number of
+workers, it is more likely because of such error, instead of the sorter not functioning properly.
+
+

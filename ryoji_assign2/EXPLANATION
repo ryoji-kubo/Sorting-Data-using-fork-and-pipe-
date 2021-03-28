@@ -1,0 +1,123 @@
+Hello! Welcome to the explanation document! I hope you will enjoy reading this document (future me reading this 
+trying to figure out what I did, you are welcome :-) )
+
+This file consists of
+- myhie.h, myhie.cpp
+- coord.h, coord.cpp
+- sort.h, sort.cpp
+- heapsort.h, heapsort.cpp
+- bubblesort.h, bubblesort.cpp
+- merger.h, merger.cpp
+- taxpayer.h, taxpayer.cpp
+- makefile, readme, explanation, assignment sheet, input data files
+
+FileZilla
+host: sftp://rk3570@bled.abudhabi.nyu.edu
+username: rk3570
+password: nyu password
+
+SSH
+ssh rk3570@bled.abudhabi.nyu.edu -p 4410
+
+The main application executable will be myhie. Refer to the assignment sheet and makefile for more information on the compilation.
+
+taxpayer.h and taxpayer.cpp creates a Taxpayer class, which will be used later to hold a single line from the input file. 
+
+=====================ROOT NODE==================================
+myhie.h and myhie.cpp is what is referred as the "root" node in the assignment sheet. 
+Its main function is to read the command line input and creating "coordinator" node. The command line input is read in a way that
+it checks if the input is valid on two main levels. The first level is seeing if the number of input matches the required number of input.
+The second level is checking if the each input is an appropriate input. By doing so, it makes sure that the program carries on with the
+valid input from the command line.
+
+The root node makes sure that it waits for the termination of the coordinator node before itself terminates to avoid orphans/zombies.
+
+It also has signal handlers to handle the SIGUSR1 sent from sorters and SIGUSR2 sent from the merger node. It prints out the necessarily
+timing statistics and the number of signals received.
+=======================================================================
+
+=====================COORDINATOR NODE==================================
+coord.h and coord.cpp defines and declares the coordinator node and its main functionality.
+When the coordinator node spawns from the root node, it gets passed the inputFile, number of sorters, the attribute number, whether it
+is going to have random range, and the order of sorting to the coord() function in coord.h.
+
+First thing the coordinator node does is reading from the inputFile. It reads how many lines there are in the inputFile to determine the array size.
+
+After that, the coordinator node assigns the range that each sorter is going to work by creating another array of int, rangeArray.
+This will consider the cases of which the range is randomly assigned and when the range is equally distributed. Necessarily measures
+are taken to make sure that the sum of range matches the arraySize. Similarly, it creates a startIndex array which will hold the starting index
+for each sorter. When randomly assigning ranges, it makes sure that each sorter has at least one element so that it is less prone to error and 
+the program is kept simple.
+
+It will then spawn the merger node. The reason this is done before the spawning of sorter node is that there will be no delay and sorter nodes wouldn't have
+to wait for the reading side of the fifo to be open in order to write. 
+
+Finally, now that we have the data size and the range assigned for each sorter, the coordinator node can create k (=number of sorters) 
+sorters. When creating these "sorting" nodes, the coordinator makes sure to wait for the completion for all the "sorting" nodes, so that
+we avoid any orphans/zombies situation. It passes the necessarily arguments in the form of a char array, so that this arg can be used when
+using the exec() function. When creating these sorters, odd indexed workers will conduct heapsort executable and the even indexed workers will
+do bubblesort.
+========================================================================
+
+=======================SORTING NODE=====================================
+sort.h and sort.cpp basically gets the correct path and invokes the exec() call. I used execv() to be able to pass an array of arguments.
+Either the heapsort of the bubblesort executable that was compiled separately in the makefile is invoked.
+
+defines and declares the sorting node and its main functionality.
+When the sorting node spawns from the coordinator node, it gets passed the TaxArray (which stores all the data from the inputFile), 
+rangeArray (which stores the range for the sorting nodes), the attribute number, the order of sorting, the name of the executable for
+the actual sorting, the index of the current sorting node, and the arraySize (total number of Taxpayers).
+
+heapsort.h and heapsort.cpp implements the executable for heapsort while bubblesort.h and bubblesort.cpp implements the executable for bubblesort.
+These pairs are similar and the only difference is the sorting algorithm that it invokes. 
+
+First of all, they read the parameters passed as a char array. After that, It reads from the input file, and construct an array of taxpayer objects. 
+To keep the job fast, each sorter will only read from its starting index upto the range specified.
+Simultaneously, it constructs a dataArray, which will hold the data which will be sorted. 
+
+After that, it sorts the array using the corresponding sorting algorithm. Both the array of Taxpayer obj and data array is passed, the sorting will be
+done on the dataArray but the same changes will be reflected on the array of Taxpayer obj. 
+
+It pipes the sorted array to the merger node using named pipes. (fifo)  It also pipes the time statistics at the same time. To make sure that reader can make
+sense of the reading when all the contents are flawing in fifo in random order, (as multiple processes write to it) it writes the sorterIndex at the beginning of 
+the line, and that way the reader can make sense of the content and establish the sortedArray for each sorter.
+
+*some small details to be careful of when implementing the writing side of fifo*
+- be careful of the placement of the null pointer, including the null pointer when multiple processes are writing to the pipe leads to an error as the read
+side will think that it has reached the end of the file.
+- use delimeters to separate your data. in our case, we used the \n delimiter.
+- do not open and close everytime you write. open the fifo, write all the content, and close it.
+
+
+It makes sure that it deletes all the dynamically allocated arrays and elements before terminating.
+
+It sends the SIGUSR1 signal to the root.
+========================================================================
+
+=============================MERGER NODE===================================
+merger.h and merger.cpp implements the merger node. It first creates the necessary arrays. SortedArray is a 2D array that keeps an array of Taxpayer obj for each
+sorter. Similarly, it makes dataArray which is another 2D array but instead of holding Taxpayer obj it holds the attribute data in question. 
+
+It then reads the fifo file and inserts data into the above mentioned arrays. It keeps an array for the index for each sorter (sortPosArr), which all start from 0, but everytime
+it reads data from a specific sorter, the value at the index of sortPosArr increments. This is used to correctly insert the data into the 2D arrays.
+
+*small details to be careful of when implementing the reading side of fifo*
+- instead of a read() implement readLine() which will only read until delimiter \n.
+- safeguard it by seeing how many char is being read everytime, if it is 0, it probably means that new data has not arrived yet. You want to check for this condition as otherwise
+you might keep inserting the same data again and again.
+
+After populating the 2D arrays, it will do the merge sorting.
+
+The merge sorting is implemented using heapsort. First of all, it will have an array (mergeArray) which will keep the first elements of each SortedArray. (if it doesn't exist, we will use a 
+dummy variable) Then, it will do a heapsort on mergeArray, and the same change will be reflected to indexArray, which records from which SortedArray the data came from.
+Now depending on the order, you will extract either the min/max element and insert that to the FinalArray. The next element from the SortedArray from which the min/max was extracted from is
+inserted to the mergeArray. It will repeat the loop and again conduct the heapsort, etc. 
+
+When it runs out of elements to insert, it will use a dummy variable. When it runs out of elements to insert for all of the SortedArray, the merge sorting algorithm terminates and you have a copy
+of fully sorted algorithm. 
+
+Now that we have merge sorted the data, all that is left is printing to stdout and writing the output file, sending the SIGUSR2 signal to root. It also makes sure to display and write the necessarily
+time statistics.
+
+It disallocated memory that was used.
+========================================================================
